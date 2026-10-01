@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Danh sách chương</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+  <div class="page-wrap narrow">
+    <div class="crumb"><a href="index.html">← Thư viện truyện</a></div>
+    <div class="brand" id="seriesBrand">—</div>
+    <div class="sub" id="seriesSub">Chọn một chương để đọc</div>
+    <div id="chapterList" class="loading-msg">Đang tải danh sách chương…</div>
+  </div>
+
+  <div id="toast"><span id="toastText"></span></div>
+
+<script>
+(async function(){
+  const brandEl = document.getElementById('seriesBrand');
+  const subEl = document.getElementById('seriesSub');
+  const listEl = document.getElementById('chapterList');
+  const toast = document.getElementById('toast');
+  const toastText = document.getElementById('toastText');
+
+  function showToast(msg){
+    toastText.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2600);
+  }
+
+  const params = new URLSearchParams(location.search);
+  const slug = params.get('s');
+
+  if (!slug){
+    listEl.className = 'empty-msg';
+    listEl.textContent = 'Thiếu tham số bộ truyện.';
+    return;
+  }
+
+  try {
+    const res = await fetch(`series/${slug}/manifest.json`, { cache: 'no-store' });
+    if (!res.ok) throw new Error('no manifest');
+    const data = await res.json();
+
+    brandEl.textContent = data.title || slug;
+    document.title = data.title || slug;
+    if (data.subtitle) subEl.textContent = data.subtitle;
+
+    const chapters = Array.isArray(data.chapters) ? data.chapters : [];
+    if (chapters.length === 0){
+      listEl.className = 'empty-msg';
+      listEl.textContent = 'Bộ truyện này chưa có chương nào.';
+      return;
+    }
+
+    listEl.className = 'chapter-list';
+    listEl.innerHTML = '';
+    chapters.forEach(ch => {
+      const item = document.createElement('a');
+      item.className = 'chapter-item';
+      item.href = 'reader.html?s=' + encodeURIComponent(slug) + '&ch=' + encodeURIComponent(ch.slug);
+
+      if (ch.cover){
+        const thumb = document.createElement('div');
+        thumb.className = 'ch-thumb';
+        thumb.style.backgroundImage = `url('series/${slug}/chapters/${ch.slug}/${ch.cover}')`;
+        item.appendChild(thumb);
+      }
+
+      const textWrap = document.createElement('div');
+      textWrap.className = 'ch-text';
+
+      const title = document.createElement('div');
+      title.className = 'ch-title';
+      title.textContent = ch.title || ch.slug;
+
+      const meta = document.createElement('div');
+      meta.className = 'ch-meta';
+      meta.textContent = (ch.pages || '?') + ' trang';
+
+      textWrap.appendChild(title);
+      textWrap.appendChild(meta);
+      item.appendChild(textWrap);
+      listEl.appendChild(item);
+    });
+  } catch (err){
+    listEl.className = 'empty-msg';
+    listEl.textContent = 'Không tìm thấy bộ truyện này (thiếu series/' + slug + '/manifest.json).';
+  }
+})();
+</script>
+</body>
+</html>

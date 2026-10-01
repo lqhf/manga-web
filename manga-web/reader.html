@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Đang đọc…</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+  <div id="reader">
+    <a id="backBtn" href="index.html" title="Về danh sách chương">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </a>
+
+    <div id="pageHeader">
+      <div class="title" id="seriesTitle">Đang tải…</div>
+    </div>
+
+    <div id="strip"></div>
+
+    <div id="toTop">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
+    </div>
+  </div>
+
+  <div id="toast"><span id="toastText"></span></div>
+
+<script>
+(async function(){
+  const strip = document.getElementById('strip');
+  const seriesTitle = document.getElementById('seriesTitle');
+  const backBtn = document.getElementById('backBtn');
+  const toast = document.getElementById('toast');
+  const toastText = document.getElementById('toastText');
+
+  function showToast(msg){
+    toastText.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2800);
+  }
+
+  const params = new URLSearchParams(location.search);
+  const seriesSlug = params.get('s');
+  const chapterSlug = params.get('ch');
+
+  if (!seriesSlug || !chapterSlug){
+    seriesTitle.textContent = 'Thiếu tham số';
+    showToast('Không rõ bộ truyện/chương nào — quay lại thư viện');
+    return;
+  }
+
+  // back button luôn quay về danh sách chương của đúng bộ truyện này
+  backBtn.href = 'series.html?s=' + encodeURIComponent(seriesSlug);
+
+  // Load manifest của bộ truyện (để lấy tên chương + tìm chương kế tiếp)
+  let seriesData = null;
+  try {
+    const res = await fetch(`series/${seriesSlug}/manifest.json`, { cache: 'no-store' });
+    if (res.ok) seriesData = await res.json();
+  } catch(e){ /* không sao, vẫn thử đọc pages.json trực tiếp */ }
+
+  let chapterMeta = null;
+  let nextChapter = null;
+  if (seriesData && Array.isArray(seriesData.chapters)){
+    const idx = seriesData.chapters.findIndex(c => c.slug === chapterSlug);
+    if (idx !== -1){
+      chapterMeta = seriesData.chapters[idx];
+      nextChapter = seriesData.chapters[idx + 1] || null;
+    }
+  }
+
+  const seriesName = seriesData && seriesData.title ? seriesData.title + ' — ' : '';
+  const chapterTitle = (chapterMeta && chapterMeta.title) || chapterSlug;
+  seriesTitle.textContent = seriesName + chapterTitle;
+  document.title = seriesName + chapterTitle;
+
+  // Load danh sách trang của chương này
+  let pages = [];
+  try {
+    const res = await fetch(`series/${seriesSlug}/chapters/${chapterSlug}/pages.json`, { cache: 'no-store' });
+    if (!res.ok) throw new Error('missing pages.json');
+    pages = await res.json();
+  } catch(err){
+    seriesTitle.textContent = 'Không tải được chương này';
+    showToast('Thiếu file series/' + seriesSlug + '/chapters/' + chapterSlug + '/pages.json');
+    return;
+  }
+
+  if (!Array.isArray(pages) || pages.length === 0){
+    seriesTitle.textContent = 'Chương chưa có ảnh';
+    return;
+  }
+
+  const total = pages.length;
+  const basePath = `series/${seriesSlug}/chapters/${chapterSlug}/`;
+  const frag = document.createDocumentFragment();
+
+  pages.forEach((filename, i) => {
+    const block = document.createElement('div');
+    block.className = 'pg-block';
+
+    const counter = document.createElement('div');
+    counter.className = 'pg-counter';
+    counter.textContent = (i+1) + ' / ' + total;
+
+    const img = document.createElement('img');
+    img.loading = 'lazy';        // trình duyệt chỉ tải ảnh khi gần tới, không tải cả chương một lần
+    img.decoding = 'async';
+    img.src = basePath + filename;
+    img.alt = 'Trang ' + (i+1);
+
+    block.appendChild(img);
+    block.appendChild(counter);
+    frag.appendChild(block);
+  });
+
+  strip.appendChild(frag);
+
+  const endNote = document.createElement('div');
+  endNote.id = 'endNote';
+  endNote.textContent = 'Hết chương — ' + total + ' trang';
+  strip.appendChild(endNote);
+
+  if (nextChapter){
+    const btn = document.createElement('a');
+    btn.id = 'nextChapterBtn';
+    btn.href = 'reader.html?s=' + encodeURIComponent(seriesSlug) + '&ch=' + encodeURIComponent(nextChapter.slug);
+    btn.textContent = 'Chương tiếp theo: ' + (nextChapter.title || nextChapter.slug) + ' →';
+    strip.appendChild(btn);
+  } else {
+    const btn = document.createElement('a');
+    btn.id = 'nextChapterBtn';
+    btn.href = 'series.html?s=' + encodeURIComponent(seriesSlug);
+    btn.textContent = 'Về danh sách chương';
+    strip.appendChild(btn);
+  }
+
+  window.scrollTo(0,0);
+})();
+
+window.addEventListener('scroll', () => {
+  document.getElementById('toTop').classList.toggle('show', window.scrollY > 600);
+}, { passive:true });
+
+document.getElementById('toTop').addEventListener('click', () => {
+  window.scrollTo({ top:0, behavior:'smooth' });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Đọc truyện</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+  <div class="page-wrap">
+    <div class="brand">Thư viện truyện</div>
+    <div class="sub">Chọn một bộ truyện để xem danh sách chương</div>
+    <div id="seriesGrid" class="loading-msg">Đang tải danh sách…</div>
+  </div>
+
+  <div id="toast"><span id="toastText"></span></div>
+
+<script>
+(async function(){
+  const gridEl = document.getElementById('seriesGrid');
+  const toast = document.getElementById('toast');
+  const toastText = document.getElementById('toastText');
+
+  function showToast(msg){
+    toastText.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2600);
+  }
+
+  try {
+    const res = await fetch('manifest.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error('no manifest');
+    const data = await res.json();
+    const list = Array.isArray(data.series) ? data.series : [];
+
+    if (list.length === 0){
+      gridEl.className = 'empty-msg';
+      gridEl.textContent = 'Chưa có bộ truyện nào. Xem README.md để biết cách thêm.';
+      return;
+    }
+
+    gridEl.className = 'series-grid';
+    gridEl.innerHTML = '';
+    list.forEach(s => {
+      const card = document.createElement('a');
+      card.className = 'series-card';
+      card.href = 'series.html?s=' + encodeURIComponent(s.slug);
+
+      const cover = document.createElement('div');
+      cover.className = 'series-cover';
+      if (s.cover){
+        cover.style.backgroundImage = `url('series/${s.slug}/${s.cover}')`;
+      } else {
+        cover.textContent = 'Chưa có ảnh bìa';
+      }
+
+      const info = document.createElement('div');
+      info.className = 'series-info';
+      const name = document.createElement('div');
+      name.className = 'series-name';
+      name.textContent = s.title || s.slug;
+      const meta = document.createElement('div');
+      meta.className = 'series-meta';
+      meta.textContent = (s.chapters || 0) + ' chương';
+      info.appendChild(name);
+      info.appendChild(meta);
+
+      card.appendChild(cover);
+      card.appendChild(info);
+      gridEl.appendChild(card);
+    });
+  } catch (err){
+    gridEl.className = 'empty-msg';
+    gridEl.textContent = 'Không đọc được manifest.json. Nếu bạn đang mở file này trực tiếp (file://), hãy chạy qua server cục bộ hoặc deploy lên Netlify/GitHub Pages.';
+  }
+})();
+</script>
+</body>
+</html>
